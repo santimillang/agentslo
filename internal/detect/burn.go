@@ -48,8 +48,24 @@ type bucket struct {
 	good, total int64
 }
 
+// ring holds good/total counts in fixed-width time buckets, enough of them
+// to cover retention. Old buckets are overwritten in place.
 type ring struct {
 	buckets []bucket
+}
+
+func newRing(retention, width time.Duration) *ring {
+	r := &ring{buckets: make([]bucket, int(retention/width)+1)}
+	for i := range r.buckets {
+		r.buckets[i].start = -1
+	}
+	return r
+}
+
+// bucketRange returns the bucket index range [from, to] covering window up to now.
+func bucketRange(now time.Time, window, width time.Duration) (from, to int64) {
+	to = now.UnixNano() / int64(width)
+	return to - int64(window/width) + 1, to
 }
 
 func (r *ring) add(idx int64, good bool) {
@@ -100,11 +116,7 @@ func (t *BurnTracker) Record(agent string, at time.Time, good bool) {
 	defer t.mu.Unlock()
 	r, ok := t.rings[agent]
 	if !ok {
-		n := int(t.cfg.Retention/t.cfg.Bucket) + 1
-		r = &ring{buckets: make([]bucket, n)}
-		for i := range r.buckets {
-			r.buckets[i].start = -1
-		}
+		r = newRing(t.cfg.Retention, t.cfg.Bucket)
 		t.rings[agent] = r
 	}
 	r.add(t.idx(at), good)
@@ -120,9 +132,7 @@ func (t *BurnTracker) BurnRate(agent string, now time.Time, window time.Duration
 	if !found {
 		return 0, false
 	}
-	to := t.idx(now)
-	from := to - int64(window/t.cfg.Bucket) + 1
-	good, total := r.sum(from, to)
+	good, total := r.sum(bucketRange(now, window, t.cfg.Bucket))
 	if total == 0 {
 		return 0, false
 	}

@@ -53,13 +53,13 @@ Set `SCENARIO=loop|retry_storm|oscillation|slow|healthy` to force one pattern.
 
 ## What it looks like
 
-![Ten minutes of the demo, sped up: research-agent's health slides to ~50 while support-bot stays at 100](docs/timelapse.gif)
+![Thirteen minutes of the demo, sped up: research-agent's health slides to ~50 while support-bot stays at 100](docs/timelapse.gif)
 
-*Ten minutes from a cold start, one frame every 15 seconds.*
+*Thirteen minutes from a cold start, one frame every 15 seconds.*
 
 Both agents handle the same load, about 60 tasks a minute each. Neither is
 "down". A dashboard of tool-call errors would show research-agent at
-roughly 11% failed calls, the kind of number that gets a shrug.
+roughly 10% failed calls, the kind of number that gets a shrug.
 
 The task-level view tells a different story. About one research-agent
 session in eight trips a loop detector. Some of those runs (the repeat and
@@ -68,16 +68,17 @@ they still count against the error budget. research-agent settles at
 about 2.4x burn, on pace to spend a 30-day budget in under two weeks.
 Its health drops to ~50; support-bot holds at 100.
 
-![Full dashboard after ten minutes](docs/dashboard.png)
+![Full dashboard after thirteen minutes](docs/dashboard.png)
 
 No alert fires, and that's deliberate. The default rules page at 14.4x
 (over both 1h and 5m) and open a ticket at 6x (over 6h and 30m). 2.4x is a
 trend to fix this sprint, not a reason to wake anyone up.
 
-"Loop events by kind" says where to look first. `retry_storm` leads (a tool
-failing over and over, whatever the arguments), so start with the flaky
-tool. `repeat` is close behind: the agent re-issuing the identical call,
-which is a prompt or planning problem rather than an infrastructure one.
+"Loop events by kind" says where to look first. `repeat` leads: the agent
+re-issuing the identical call, which is a prompt or planning problem.
+`retry_storm` is close behind (one tool failing over and over, whatever the
+arguments), which points at the tool itself. Two different fixes, and the
+error rate alone wouldn't tell you either.
 
 Hover any chart for exact values. The crosshair is shared, so every panel
 lines up on the same moment:
@@ -95,6 +96,7 @@ connectors:
     objective: 0.99        # SLO on agent tasks
     latency_target: 30s    # tasks slower than this are bad (0 = off)
     emit_interval: 15s
+    ratio_window: 1h       # rolling window for tool-error and loop ratios
     loop:
       window: 10           # last N tool calls per session
       threshold: 4         # occurrences that trip a pattern
@@ -113,7 +115,6 @@ connectors:
 Early. v0 keeps state in memory per collector instance, so run it behind a
 load-balancing exporter keyed by `gen_ai.conversation.id` when scaling out.
 
-Tool-error and loop-session ratios are computed since the last eviction
-cycle (`loop.idle_ttl`) and reset at each one, so they sawtooth with that
-period. Burn rate and health's burn component use proper time windows and
-don't. Rolling windows for the ratios are the next engine change.
+All signals are rolling-window values: burn rate over 1h and 6h, the
+tool-error and loop-session ratios over `ratio_window`. Eviction only frees
+memory; it never resets a number.

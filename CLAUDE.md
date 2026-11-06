@@ -37,17 +37,20 @@ Public repo: https://github.com/santimillang/agentslo
   `--window-size=1600,1250 --virtual-time-budget=15000`, kiosk URL with a
   fixed `from`/`to` range), `timelapse.gif` (a frame every 15s over a fixed
   range, assembled with Pillow), `hover.gif` (Claude in Chrome
-  gif_creator, resized to 960px). Use a range that ends before the first
-  eviction (10 min after collector start in the demo), see below. If you
-  retake them, re-check the numbers quoted in README "What it looks like".
+  gif_creator, resized to 960px). If you retake them, re-check the numbers
+  quoted in README "What it looks like".
+- `ToolErrRate` and `LoopRate` are rolling over `ratio_window` (default 1h):
+  tool calls in a bucket ring like burn rate, sessions with a last-seen
+  time. `Engine.Evict` only prunes aged-out state, never resets values.
+  Verified in the demo across the 10-minute eviction: no drop.
 
 ## Next steps
 
-1. Rolling windows for `ToolErrRate` and `LoopRate`. Today `Engine.Evict`
-   zeroes them every `idle_ttl`, so they (and health) sawtooth. Burn rate
-   already uses a bucket ring; reuse that approach.
+1. Tag v0.1.0: README install instructions that don't rely on the local
+   `replaces`, GitHub release, optionally publish the collector image to GHCR.
 2. Health stays at 100 for an agent with no tasks; consider "no data".
 3. Engine state is per collector instance (see README "Status").
+4. Try it against a real instrumented agent instead of `fakeagent`.
 
 ## Conventions
 

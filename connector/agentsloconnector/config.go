@@ -15,6 +15,9 @@ type Config struct {
 	LatencyTarget time.Duration `mapstructure:"latency_target"`
 	// EmitInterval is how often metrics are pushed downstream.
 	EmitInterval time.Duration `mapstructure:"emit_interval"`
+	// RatioWindow is the rolling window for the tool-error and loop-session
+	// ratios (and the health inputs built from them).
+	RatioWindow time.Duration `mapstructure:"ratio_window"`
 
 	Loop LoopConfig `mapstructure:"loop"`
 }
@@ -29,6 +32,7 @@ func createDefaultConfig() *Config {
 	return &Config{
 		Objective:    0.99,
 		EmitInterval: 15 * time.Second,
+		RatioWindow:  time.Hour,
 		Loop:         LoopConfig{Window: 10, Threshold: 4, IdleTTL: 30 * time.Minute},
 	}
 }
@@ -40,12 +44,16 @@ func (c *Config) Validate() error {
 	if c.EmitInterval <= 0 {
 		return errors.New("emit_interval must be positive")
 	}
+	if c.RatioWindow <= 0 {
+		return errors.New("ratio_window must be positive")
+	}
 	return nil
 }
 
 func (c *Config) engineConfig() detect.Config {
 	return detect.Config{
-		Loop: detect.LoopConfig{Window: c.Loop.Window, Threshold: c.Loop.Threshold, IdleTTL: c.Loop.IdleTTL},
-		SLO:  detect.BurnConfig{Objective: c.Objective, LatencyTarget: c.LatencyTarget},
+		Loop:        detect.LoopConfig{Window: c.Loop.Window, Threshold: c.Loop.Threshold, IdleTTL: c.Loop.IdleTTL},
+		SLO:         detect.BurnConfig{Objective: c.Objective, LatencyTarget: c.LatencyTarget},
+		RatioWindow: c.RatioWindow,
 	}
 }

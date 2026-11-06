@@ -186,3 +186,56 @@ func TestLoopRateIgnoresLLMSessionFallback(t *testing.T) {
 		t.Fatalf("want loop rate 0.5 (1 of 2 sessions), got %v", got)
 	}
 }
+
+// Eviction must only drop idle state, never reset the ratios: they are
+// rolling-window values, not "since last eviction".
+func TestRatiosSurviveEvict(t *testing.T) {
+	e := NewEngine(Config{Loop: LoopConfig{Threshold: 3, IdleTTL: time.Minute}, RatioWindow: time.Hour})
+	e.Observe(tool("ok", "search", "q", true, t0)) // 1 failed call
+	for i := 0; i < 3; i++ {
+		e.Observe(tool("loop", "search", "same", false, t0.Add(time.Duration(i)*time.Second)))
+	}
+	now := t0.Add(5 * time.Minute)
+	before := e.Snapshot(now)[0]
+	e.Evict(now)
+	after := e.Snapshot(now)[0]
+	if after.ToolErrRate != before.ToolErrRate || after.LoopRate != before.LoopRate {
+		t.Fatalf("evict changed ratios: before err=%v loop=%v, after err=%v loop=%v",
+			before.ToolErrRate, before.LoopRate, after.ToolErrRate, after.LoopRate)
+	}
+	if after.ToolErrRate != 0.25 || after.LoopRate != 0.5 {
+		t.Fatalf("want err 0.25 loop 0.5, got %v %v", after.ToolErrRate, after.LoopRate)
+	}
+}
+
+// Ratios only cover RatioWindow: old traffic ages out with or without Evict.
+func TestRatiosAgeOutOfWindow(t *testing.T) {
+	e := NewEngine(Config{Loop: LoopConfig{Threshold: 3}, RatioWindow: 10 * time.Minute})
+	for i := 0; i < 3; i++ {
+		e.Observe(tool("old", "search", "same", true, t0.Add(time.Duration(i)*time.Second)))
+	}
+	e.Observe(tool("new", "search", "q", false, t0.Add(30*time.Minute)))
+	now := t0.Add(31 * time.Minute)
+	for _, evict := range []bool{false, true} {
+		if evict {
+			e.Evict(now)
+		}
+		s := e.Snapshot(now)[0]
+		if s.ToolErrRate != 0 || s.LoopRate != 0 {
+			t.Fatalf("evict=%v: old session should be out of window, got err=%v loop=%v", evict, s.ToolErrRate, s.LoopRate)
+		}
+	}
+}
+
+// A loop seen before an eviction cycle still makes its task bad afterwards.
+func TestLoopStatusSurvivesEvict(t *testing.T) {
+	e := NewEngine(Config{Loop: LoopConfig{Threshold: 3, IdleTTL: time.Hour}, SLO: BurnConfig{Objective: 0.9}})
+	for i := 0; i < 3; i++ {
+		e.Observe(tool("loop", "search", "same", false, t0.Add(time.Duration(i)*time.Second)))
+	}
+	e.Evict(t0.Add(time.Minute))
+	e.Observe(task("loop", false, t0, 2*time.Minute))
+	if b := e.Snapshot(t0.Add(3 * time.Minute))[0].BurnRate1h; b < 9.99 {
+		t.Fatalf("looping task should be bad (burn 10), got %v", b)
+	}
+}

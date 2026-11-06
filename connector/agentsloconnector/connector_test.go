@@ -144,6 +144,7 @@ func TestConfigValidate(t *testing.T) {
 		"objective zero": func(c *Config) { c.Objective = 0 },
 		"objective one":  func(c *Config) { c.Objective = 1 },
 		"emit zero":      func(c *Config) { c.EmitInterval = 0 },
+		"ratio zero":     func(c *Config) { c.RatioWindow = 0 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := createDefaultConfig()

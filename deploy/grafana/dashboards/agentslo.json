@@ -366,7 +366,7 @@
       "id": 5,
       "type": "timeseries",
       "title": "Tool error ratio",
-      "description": "Failed tool calls / tool calls (since last eviction).",
+      "description": "Failed tool calls / tool calls over ratio_window (default 1h).",
       "datasource": {
         "type": "grafana-clickhouse-datasource",
         "uid": "clickhouse"
@@ -459,7 +459,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Sessions with a loop",
-      "description": "Share of sessions where a loop pattern tripped.",
+      "description": "Share of sessions within ratio_window (default 1h) where a loop pattern tripped.",
       "datasource": {
         "type": "grafana-clickhouse-datasource",
         "uid": "clickhouse"
