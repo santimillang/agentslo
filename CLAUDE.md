@@ -30,16 +30,24 @@ Public repo: https://github.com/santimillang/agentslo
   `deploy/grafana/dashboards/agentslo.json`; colors come from the dataviz
   skill's validated dark palette (agents = slots 1-2, loop kinds = 3-5,
   status colors only on the stat tiles).
-- README screenshot: `docs/dashboard.png`, taken with headless Chrome:
-  `chrome --headless=new --window-size=1600,1500 --virtual-time-budget=20000
-  --screenshot=docs/dashboard.png "http://127.0.0.1:3000/d/agentslo/agentslo?kiosk&from=now-10m&to=now"`.
-  If you retake it, re-check the numbers quoted in the README's "What it
-  looks like" section.
+- Grafana does not notice edits to the dashboard JSON through the Docker
+  Desktop bind mount on Windows: `docker compose restart grafana` after
+  changing it.
+- README media in `docs/`: `dashboard.png` (headless Chrome,
+  `--window-size=1600,1250 --virtual-time-budget=15000`, kiosk URL with a
+  fixed `from`/`to` range), `timelapse.gif` (a frame every 15s over a fixed
+  range, assembled with Pillow), `hover.gif` (Claude in Chrome
+  gif_creator, resized to 960px). Use a range that ends before the first
+  eviction (10 min after collector start in the demo), see below. If you
+  retake them, re-check the numbers quoted in README "What it looks like".
 
 ## Next steps
 
-- Health stays at 100 for an agent with no tasks; consider "no data".
-- Engine state is per collector instance (see README "Status").
+1. Rolling windows for `ToolErrRate` and `LoopRate`. Today `Engine.Evict`
+   zeroes them every `idle_ttl`, so they (and health) sawtooth. Burn rate
+   already uses a bucket ring; reuse that approach.
+2. Health stays at 100 for an agent with no tasks; consider "no data".
+3. Engine state is per collector instance (see README "Status").
 
 ## Conventions
 
