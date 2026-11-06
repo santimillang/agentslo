@@ -1,0 +1,7 @@
+_build/
+*.test
+*.out
+__pycache__/
+.venv/
+_to_delete/
+*.exe

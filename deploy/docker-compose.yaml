@@ -1,0 +1,28 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports: ["8123:8123", "9000:9000"]
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 5s
+      retries: 20
+
+  collector:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.collector
+    ports: ["4317:4317", "4318:4318"]
+    depends_on:
+      clickhouse: { condition: service_healthy }
+
+  fakeagent:
+    build: ../examples/fakeagent
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://collector:4318
+      SCENARIO: ${SCENARIO:-mixed}
+    depends_on: [collector]

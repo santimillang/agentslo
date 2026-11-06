@@ -1,0 +1,24 @@
+# OpenTelemetry Collector Builder (ocb) manifest.
+# Core v0.164.0 (stable modules v1.70.0); contrib clickhouseexporter v0.164.1
+dist:
+  name: otelcol-agentslo
+  description: OTel Collector with the agentslo connector
+  output_path: ./_build
+
+receivers:
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.164.0
+
+processors:
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.164.0
+
+exporters:
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.164.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.164.1
+
+connectors:
+  - gomod: github.com/santimillang/agentslo v0.0.0
+    import: github.com/santimillang/agentslo/connector/agentsloconnector
+    path: ./
+
+replaces:
+  - github.com/santimillang/agentslo => ../

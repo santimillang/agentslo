@@ -1,0 +1,40 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 2s
+
+connectors:
+  agentslo:
+    objective: 0.95
+    latency_target: 30s
+    emit_interval: 10s
+    loop:
+      window: 10
+      threshold: 4
+      idle_ttl: 10m
+
+exporters:
+  debug:
+    verbosity: basic
+  clickhouse:
+    endpoint: tcp://clickhouse:9000?dial_timeout=10s
+    database: otel
+    create_schema: true
+    ttl: 72h
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [agentslo, clickhouse]
+    metrics:
+      receivers: [agentslo]
+      exporters: [clickhouse, debug]
