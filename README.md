@@ -27,8 +27,11 @@ and frustrate users while every error-rate dashboard stays green.
   no SDK, no decorators, no code changes in the agent.
 - **Backend-agnostic.** Emits plain OTel metrics. ClickHouse is the demo;
   Prometheus, Elastic or any vendor works the same.
-- **Privacy-preserving.** Tool arguments are fingerprinted (truncated SHA-256)
-  for loop detection and never stored.
+- **Privacy-preserving.** The connector only keeps a fingerprint of tool
+  arguments (truncated SHA-256) for loop detection. Raw spans going to your
+  backend are a separate path: the demo config hashes
+  `gen_ai.tool.call.arguments` with the attributes processor before any
+  exporter sees them, and you should do the same.
 
 ```
 traces:  otlp ──► agentslo ──► (metrics pipeline) ──► clickhouse
@@ -40,12 +43,49 @@ traces:  otlp ──► agentslo ──► (metrics pipeline) ──► clickhou
 ```bash
 cd deploy
 docker compose up --build
-# raw spans + agentslo metrics land in ClickHouse (database `otel`)
+# Grafana:    http://localhost:3000  (dashboard opens on the home page)
+# ClickHouse: http://localhost:8123  (database `otel`)
 ```
 
 `examples/fakeagent` emits two agents: `support-bot` (healthy) and
 `research-agent` (occasionally loops, retry-storms, oscillates, runs slow).
 Set `SCENARIO=loop|retry_storm|oscillation|slow|healthy` to force one pattern.
+
+## What it looks like
+
+![Ten minutes of the demo, sped up: research-agent's health slides to ~50 while support-bot stays at 100](docs/timelapse.gif)
+
+*Ten minutes from a cold start, one frame every 15 seconds.*
+
+Both agents handle the same load, about 60 tasks a minute each. Neither is
+"down". A dashboard of tool-call errors would show research-agent at
+roughly 11% failed calls, the kind of number that gets a shrug.
+
+The task-level view tells a different story. About one research-agent
+session in eight trips a loop detector. Some of those runs (the repeat and
+oscillation ones) even end with a *successful* `invoke_agent` span, but
+they still count against the error budget. research-agent settles at
+about 2.4x burn, on pace to spend a 30-day budget in under two weeks.
+Its health drops to ~50; support-bot holds at 100.
+
+![Full dashboard after ten minutes](docs/dashboard.png)
+
+No alert fires, and that's deliberate. The default rules page at 14.4x
+(over both 1h and 5m) and open a ticket at 6x (over 6h and 30m). 2.4x is a
+trend to fix this sprint, not a reason to wake anyone up.
+
+"Loop events by kind" says where to look first. `retry_storm` leads (a tool
+failing over and over, whatever the arguments), so start with the flaky
+tool. `repeat` is close behind: the agent re-issuing the identical call,
+which is a prompt or planning problem rather than an infrastructure one.
+
+Hover any chart for exact values. The crosshair is shared, so every panel
+lines up on the same moment:
+
+![Hovering the health and burn-rate charts](docs/hover.gif)
+
+The dashboard is provisioned from `deploy/grafana/` and queries ClickHouse
+directly, so it doubles as a reference for querying the metrics yourself.
 
 ## Configuration
 
@@ -65,10 +105,15 @@ connectors:
 
 - `internal/detect` – the engine (loops, burn rates, health). Stdlib only, fully unit-tested.
 - `connector/agentsloconnector` – collector wiring: pdata → engine → metrics.
-- `deploy/` – ocb build, collector config, docker-compose with ClickHouse.
+- `deploy/` – ocb build, collector config, docker-compose with ClickHouse and a provisioned Grafana dashboard.
 - `examples/fakeagent` – span generator with known failure patterns.
 
 ## Status
 
 Early. v0 keeps state in memory per collector instance, so run it behind a
 load-balancing exporter keyed by `gen_ai.conversation.id` when scaling out.
+
+Tool-error and loop-session ratios are computed since the last eviction
+cycle (`loop.idle_ttl`) and reset at each one, so they sawtooth with that
+period. Burn rate and health's burn component use proper time windows and
+don't. Rolling windows for the ratios are the next engine change.

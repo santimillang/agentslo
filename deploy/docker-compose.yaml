@@ -20,6 +20,21 @@ services:
     depends_on:
       clickhouse: { condition: service_healthy }
 
+  grafana:
+    image: grafana/grafana:13.3.0
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.23.4
+      # Local demo only: open the dashboard without logging in.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/agentslo.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      clickhouse: { condition: service_healthy }
+
   fakeagent:
     build: ../examples/fakeagent
     environment:

@@ -22,15 +22,24 @@ Public repo: https://github.com/santimillang/agentslo
   raw tool args were reaching ClickHouse via the traces pipeline (now hashed
   by `attributes/redact_tool_args` in `deploy/otelcol.yaml`).
 
-## Next steps, in order
+- An A,B,A,B run now reports as `oscillation` only, not also `repeat`.
+- CI (`.github/workflows/ci.yml`): gofmt, vet, `go test -race`, ocb build,
+  config validation.
+- Grafana 13.3.0 + grafana-clickhouse-datasource 4.23.4 in compose
+  (localhost:3000, anonymous viewer). Dashboard JSON is
+  `deploy/grafana/dashboards/agentslo.json`; colors come from the dataviz
+  skill's validated dark palette (agents = slots 1-2, loop kinds = 3-5,
+  status colors only on the stat tiles).
+- README screenshot: `docs/dashboard.png`, taken with headless Chrome:
+  `chrome --headless=new --window-size=1600,1500 --virtual-time-budget=20000
+  --screenshot=docs/dashboard.png "http://127.0.0.1:3000/d/agentslo/agentslo?kiosk&from=now-10m&to=now"`.
+  If you retake it, re-check the numbers quoted in the README's "What it
+  looks like" section.
 
-1. Small dashboard (ClickHouse queries → HTML or Grafana).
-2. GitHub Actions: vet, test (with `-race` on Linux), ocb build.
-3. Blog-post-style README section with a screenshot.
+## Next steps
 
-Known quirk, not yet decided: an A,B,A,B oscillation with fixed args also
-trips `repeat` (A appears Threshold times in the window), so one session can
-count under both kinds.
+- Health stays at 100 for an agent with no tasks; consider "no data".
+- Engine state is per collector instance (see README "Status").
 
 ## Conventions
 
