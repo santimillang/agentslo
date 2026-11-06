@@ -9,6 +9,13 @@ receivers:
 processors:
   batch:
     timeout: 2s
+  # Tool arguments may hold user data: hash them (SHA-256) before any
+  # exporter or the connector sees them. Equality survives, so loop
+  # detection still works on the hash.
+  attributes/redact_tool_args:
+    actions:
+      - key: gen_ai.tool.call.arguments
+        action: hash
 
 connectors:
   agentslo:
@@ -33,7 +40,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [attributes/redact_tool_args, batch]
       exporters: [agentslo, clickhouse]
     metrics:
       receivers: [agentslo]

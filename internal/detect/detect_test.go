@@ -155,3 +155,24 @@ func TestEngineLoopMakesTaskBad(t *testing.T) {
 		t.Fatalf("health should be degraded but not zero, got %v", s.Health)
 	}
 }
+
+// LLM spans often carry no conversation id, so Session() falls back to the
+// trace id. They must not count as extra sessions in LoopRate.
+func TestLoopRateIgnoresLLMSessionFallback(t *testing.T) {
+	e := NewEngine(Config{Loop: LoopConfig{Threshold: 3}, SLO: BurnConfig{Objective: 0.9}})
+	llm := func(trace string) Span {
+		return Span{TraceID: trace, Agent: "support-bot", Kind: KindLLM, Start: t0, End: t0, InputTokens: 10}
+	}
+	e.Observe(llm("trace-ok"))
+	e.Observe(tool("ok", "search", "q", false, t0))
+	e.Observe(task("ok", false, t0, time.Second))
+	for i := 0; i < 3; i++ {
+		e.Observe(llm("trace-loop"))
+		e.Observe(tool("loop", "search", "same", false, t0.Add(time.Duration(i)*time.Second)))
+	}
+	e.Observe(task("loop", false, t0, 5*time.Second))
+
+	if got := e.Snapshot(t0.Add(10 * time.Second))[0].LoopRate; got != 0.5 {
+		t.Fatalf("want loop rate 0.5 (1 of 2 sessions), got %v", got)
+	}
+}

@@ -79,7 +79,12 @@ func (e *Engine) Observe(s Span) []LoopEvent {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	a := e.stats(s.Agent)
-	a.sessions[s.Session()] = struct{}{}
+	// Only tool and task spans define sessions: loop events are keyed on
+	// them, while LLM spans often lack gen_ai.conversation.id and would fall
+	// back to a trace id, inflating the LoopRate denominator.
+	if s.Kind == KindTool || s.Kind == KindAgent {
+		a.sessions[s.Session()] = struct{}{}
+	}
 	for _, ev := range events {
 		e.looped[ev.SessionID] = true
 		a.loopSessions[ev.SessionID] = struct{}{}
