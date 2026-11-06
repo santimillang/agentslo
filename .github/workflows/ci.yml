@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l connector internal)" || { gofmt -l connector internal; exit 1; }
+      - run: go vet ./...
+      - run: go test -race -count=1 -cover ./...
+
+  collector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build collector with ocb
+        run: make collector
+      - name: Validate deploy config
+        run: ./_build/otelcol-agentslo validate --config deploy/otelcol.yaml

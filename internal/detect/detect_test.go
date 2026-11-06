@@ -53,13 +53,23 @@ func TestOscillation(t *testing.T) {
 	for i, a := range seq {
 		got = append(got, d.Observe(tool("s1", "nav", a, false, t0.Add(time.Duration(i)*time.Second)))...)
 	}
-	// "a" also appears 3 times, so repeat legitimately fires alongside.
-	found := false
-	for _, e := range got {
-		found = found || e.Kind == LoopOscillation
+	// "a" also appears 3 times, but every occurrence is inside the
+	// alternating run, so it counts as oscillation only, not also repeat.
+	if len(got) != 1 || got[0].Kind != LoopOscillation {
+		t.Fatalf("want exactly one oscillation event, got %+v", got)
 	}
-	if !found {
-		t.Fatalf("want oscillation, got %+v", got)
+}
+
+// Repeats outside the alternating run are still a repeat loop.
+func TestRepeatOutsideOscillationStillFires(t *testing.T) {
+	d := NewLoopDetector(LoopConfig{Threshold: 3})
+	seq := []string{"a", "a", "b", "a"} // trailing run is just "b","a"
+	var got []LoopEvent
+	for i, a := range seq {
+		got = append(got, d.Observe(tool("s1", "nav", a, false, t0.Add(time.Duration(i)*time.Second)))...)
+	}
+	if len(got) != 1 || got[0].Kind != LoopRepeat {
+		t.Fatalf("want one repeat event, got %+v", got)
 	}
 }
 

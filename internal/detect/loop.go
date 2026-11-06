@@ -115,14 +115,19 @@ func (d *LoopDetector) Observe(s Span) []LoopEvent {
 	}
 	// Repeat needs the arguments: without them every call to a tool looks
 	// identical and normal fan-out ("search" x5 with different queries) would trip.
-	if s.ArgsHash != "" && same >= d.cfg.Threshold {
+	osc := oscillation(ss.calls)
+	// If the trailing A,B,A,B run holds every occurrence of the current call
+	// (a run of 2k-1 ending on it contains it k times), the repeats are the
+	// oscillation itself: report that pattern once, not as a repeat as well.
+	explainedByOsc := osc >= 2*same-1
+	if s.ArgsHash != "" && same >= d.cfg.Threshold && !explainedByOsc {
 		emit(LoopRepeat, same)
 	}
 	if cur.err && fails >= d.cfg.Threshold {
 		emit(LoopRetryStorm, fails)
 	}
-	if n := oscillation(ss.calls); s.ArgsHash != "" && n >= 2*d.cfg.Threshold-1 {
-		emit(LoopOscillation, n)
+	if s.ArgsHash != "" && osc >= 2*d.cfg.Threshold-1 {
+		emit(LoopOscillation, osc)
 	}
 	return out
 }
